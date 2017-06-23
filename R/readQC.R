@@ -180,12 +180,13 @@ wrapper_filter_reads <- function(which, bamName, what, flag, tag){
   # scan bam
   param <- ScanBamParam(flag=flag, which=which, what=what, tag=tag)
   bamCon = BamFile(bamName, asMates = FALSE) # see $mate_status for mated pairs (?BamFile)
-  bam = as.data.frame(readGAlignments(bamCon,param=param,use.names = FALSE))
+  bam.gr = readGAlignments(bamCon,param=param,use.names = FALSE)
 
-  TR = nrow(bam)
+  TR = length(bam.gr)
   if(TR < 1){ # no read cover this region
     return(output)
   }
+  bam = as.data.frame(bam.gr)
   # compute overlap bases
   TB = computeOverlapBases(bam[,c("seqnames","start","end")], which)
 
