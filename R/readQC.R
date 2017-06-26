@@ -1,6 +1,10 @@
 ##############################
 # Functions
 ##############################
+library(stringr)
+suppressMessages(library(Rsamtools))
+suppressMessages(library(GenomicAlignments))
+
 #######################################################################
 # Thu Jun 15 14:53:20 2017 ------------------------------
 # check if a read is clipping by examing the cigar (S or H)
@@ -121,27 +125,19 @@ isTooManyLowQualBases <- function(qual, phred = 33, q = 20, tol = 0.5) {
 computeOverlapBases <- function(reg1, reg2) {
   # compute how many bases in reg1 overlapping reg2
   # return overlapped bases
-  # reg1 and reg2 is a data.frame, with column 1: chr, 2:start, 3:end
-  width = reg1$end - reg1$start + 1
-  if(class(reg2) != "data.frame") {
-    reg2 = as.data.frame(reg2)
-  }
-  colnames(reg1)[1:3] = c("chr","start","end")
-  colnames(reg2)[1:3] = c("chr","start","end")
+  # reg1 and reg2 are GRanges objects, if GAlignment,
+  # use as(reg1, "GRanges") before input
+  # I think the GRanges are 1-based coordination.
 
-  n.r2 = nrow(reg2) # howmany regions in reg2
-  OB = rep(0, n.r2)
+  hits=findOverlaps(reg1, reg2, ignore.strand=TRUE) # 1:1 index table for overlapped reads
+  reg1.df = as.data.frame(reg1[queryHits(hits)])[1:4]
+  reg2.df = as.data.frame(reg2[subjectHits(hits)])[1:4]
+  # decide the start and end of an overlap
+  s.start = ifelse(reg1.df$start > reg2.df$start, reg1.df$start, reg2.df$start)
+  s.end = ifelse(reg1.df$end < reg2.df$end, reg1.df$end, reg2.df$end)
 
-  for(i in 1:n.r2){
-    f.chr = reg1[,"chr"] == reg2[i, "chr"]
-    s.start = reg2[i, "start"] - reg1[,"start"] # dropped bases from start
-    s.start[s.start < 0] = 0
-    s.end = reg1[, "end"] - reg2[i, "end"] # dropped bases from end
-    s.end[s.end < 0] = 0
-    OB[i] = sum(width[f.chr] - s.start[f.chr] - s.end[f.chr])
-  }
+  return(sum(s.end - s.start + 1))
 
-  return(OB)
 }
 
 
@@ -188,7 +184,7 @@ wrapper_filter_reads <- function(which, bamName, what, flag, tag){
   }
   bam = as.data.frame(bam.gr)
   # compute overlap bases
-  TB = computeOverlapBases(bam[,c("seqnames","start","end")], which)
+  TB = computeOverlapBases(as(bam, "Granges"), which)
 
   # filtering low confidence reads. TRUE for pass, FALSE for fail
   qc_flag = sapply(1:TR, function(i){
@@ -200,9 +196,9 @@ wrapper_filter_reads <- function(which, bamName, what, flag, tag){
       (!isHyperMutatedRead(bam$MD[i], bam$cigar[i], q = 4)) &
       bam$width[i] > 60
     if(!is.na(bam$MC[i])) {
-      base_flag = flag & (!isClipped(bam$MC[i], tol=8))
+      flag = flag & (!isClipped(bam$MC[i], tol=8))
     }
-    base_flag
+    flag
   })
 
   bam.pass = bam[qc_flag & !is.na(qc_flag),]
@@ -213,7 +209,7 @@ wrapper_filter_reads <- function(which, bamName, what, flag, tag){
     output[["bam.pass"]] = bam.pass
   }
   # compute overlap bases
-  PB = computeOverlapBases(bam.pass[,c("seqnames","start","end")], which)
+  PB = computeOverlapBases(as(bam, "Granges"), which)
 
   # set output
   output[["total.reads"]] = TR
