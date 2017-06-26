@@ -184,7 +184,7 @@ wrapper_filter_reads <- function(which, bamName, what, flag, tag){
   }
   bam = as.data.frame(bam.gr)
   # compute overlap bases
-  TB = computeOverlapBases(as(bam, "Granges"), which)
+  TB = computeOverlapBases(as(bam.gr, "GRanges"), which)
 
   # filtering low confidence reads. TRUE for pass, FALSE for fail
   qc_flag = sapply(1:TR, function(i){
@@ -201,15 +201,15 @@ wrapper_filter_reads <- function(which, bamName, what, flag, tag){
     flag
   })
 
-  bam.pass = bam[qc_flag & !is.na(qc_flag),]
-  PR = nrow(bam.pass)
+  bam.pass.gr = bam.gr[qc_flag & !is.na(qc_flag),]
+  PR = length(bam.pass.gr)
 
 
   if(PR > 0){ # has pass reads
-    output[["bam.pass"]] = bam.pass
+    output[["bam.pass"]] = as.data.frame(bam.pass.gr)
   }
   # compute overlap bases
-  PB = computeOverlapBases(as(bam, "Granges"), which)
+  PB = computeOverlapBases(as(bam.pass.gr, "GRanges"), which)
 
   # set output
   output[["total.reads"]] = TR

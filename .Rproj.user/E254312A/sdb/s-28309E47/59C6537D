@@ -1,0 +1,20 @@
+{
+    "collab_server" : "",
+    "contents" : "#setwd(\"~/CloudStation/projects/1-NPC_genomics/9-R_workspace/2017-06-23_compute_data_for_liuwsh/\")\n#library(mutationCheck)\n\nlibrary(stringr)\nsuppressMessages(library(Rsamtools))\nsuppressMessages(library(GenomicAlignments))\nsource(\"readQC.R\")\n\n# parse argument\nargs=commandArgs(TRUE)\ngfile = as.character(args[1])\n# genelist to compute\nglist = read.table(gfile, header=TRUE, stringsAsFactors = FALSE)[, 1]\n\nload(\"selected_gene_CDS_bed.RData\")\ng.inc = glist[glist %in% names(cds.bed)] # which gene are in cds.bed\nif(length(g.inc) < length(glist)){\n  warning(str_c(glist[! glist %in% g.inc],collapse = \",\"), \" are not in cds, will not compute\")\n}\ngbed = cds.bed[g.inc] # included cds bed\n\n# read samples\nall_sample_list = read.table(\"all.sample.txt\", header=FALSE, stringsAsFactors = FALSE)[,1]\nbatch = str_sub(all_sample_list, 1, 2)\nbam_path = c(\n  \"WE\" = \"/data/home/zuoxy/data/NPC/somatic/20160519_863closing/0-bam_GD/\",\n  \"HK\" = \"/data/home/zuoxy/data/NPC/somatic/20160519_863closing/0-bam_HKSG/\",\n  \"SG\" = \"/data/home/zuoxy/data/NPC/somatic/20160519_863closing/0-bam_HKSG/\"\n)\n\n# set bam names.\nbamNameArr = str_c(bam_path[batch],all_sample_list,\"_T.bam\")\n\n\nflag = scanBamFlag(isPaired = T, isProperPair = T, isUnmappedQuery = F, hasUnmappedMate = F,\n                   isSecondaryAlignment = F, isNotPassingQualityControls = F,\n                   isDuplicate = F)\nwhat = c(\"qname\",\"flag\", \"mapq\", \"isize\", \"seq\", \"qual\")\ntag = c(\"MQ\", \"MC\", \"SA\", \"MD\", \"NM\", \"XA\")\n\ncov.df = NULL\nfor(i in 1:length(g.inc)) { # each gene\n  cat(i, \" of \", length(g.inc), \" genes start: \\n\")\n  gi = g.inc[i]\n  gt = cds.bed[[gi]]\n  # initialize coverage table\n  nb = matrix(0,nr=length(gt),nc=length(all_sample_list))\n  colnames(nb) = all_sample_list\n  tmp.df = data.frame(\n    symbol = rep(gi, length(gt)),\n    txname = names(gt),\n    nb,\n    stringsAsFactors = FALSE\n  )\n  for(j in 1:length(gt)) { # each transcript\n    cat(j, \" of \", length(gt), \" transcripts for \", gi, \" start: \\n\")\n    ti = names(gt)[j]\n    te = gt[[ti]] # cds\n    for(l in 1:length(bamNameArr)){ # each sample\n      tmp.out = wrapper_filter_reads(te, bamNameArr[l], what=what, flag=flag, tag=tag)\n      tmp.df[j,all_sample_list[l]] = tmp.out$pass.bases\n       if(l %% floor(length(bamNameArr)/10) == 0){ # print log\n         cat(\"+ \")\n       }\n    }\n    cat(\"\\n\")\n  }\n  # append df\n  cov.df = rbind(cov.df, tmp.df)\n  write.table(tmp.df, str_c(\"./\", gi, \".txt\"), sep=\"\\t\", col.names=TRUE, row.names=FALSE, quote=FALSE)\n}\n\nwrite.table(tmp.df, str_c(\"./output/\", gfile, \"_output.txt\"), sep=\"\\t\", col.names=TRUE, row.names=FALSE, quote=FALSE)\n\n\n\n",
+    "created" : 1498441396407.000,
+    "dirty" : false,
+    "encoding" : "UTF-8",
+    "folds" : "",
+    "hash" : "4170347782",
+    "id" : "59C6537D",
+    "lastKnownWriteTime" : 1498441501,
+    "last_content_update" : 1498441501720,
+    "path" : "~/CloudStation/projects/1-NPC_genomics/scripts/20170623_computeCov.R",
+    "project_path" : null,
+    "properties" : {
+    },
+    "relative_order" : 6,
+    "source_on_save" : false,
+    "source_window" : "",
+    "type" : "r_source"
+}
